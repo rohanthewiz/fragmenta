@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"os"
 )
 
 // We provide no facility to rollback at the moment, because rollbacks have all sorts of subtle issues and are not often useful IME.
@@ -29,8 +30,12 @@ func RunMigrate(args []string) {
 
 }
 
+// Ideally:
 // Find the last run migration, and run all those after it in order
 // We use the fragmenta_metadata table to do this
+// Prerequisite (to avoid the chicken and the egg situation):
+// 1) Create the user and database manually in psql - the user can't create things if the user doesn't exist
+// 2) Migrations require the existence of the fragmenta_metadata table, so it must be created before-hand also.
 func migrateDB(config map[string]string) {
 	var migrations []string
 	var completed []string
@@ -50,11 +55,16 @@ func migrateDB(config map[string]string) {
 	if err != nil {
 		// if no db, proceed with empty migrations list
 		log.Printf("No database found")
+		// Here we must run the database migration and the metadata table migration
 	} else {
 		migrations = readMetadata()
 	}
 
-	perm_args := []string{"-U", config["db_user"], "-W"}
+	// psql requires permissions. Set these in environment variables
+	os.Setenv("PGUSER", config["db_user"])
+	os.Setenv("PGPASSWORD", config["db_password"])
+	os.Setenv("PGDATABASE", config["db"])
+	//perm_args := []string{"-U", config["db_user"], "-W"}
 
 	for _, file := range files {
 		filename := path.Base(file)
@@ -62,12 +72,14 @@ func migrateDB(config map[string]string) {
 		if !contains(filename, migrations) {
 			log.Printf("Running migration %s", filename)
 
-			args := append(perm_args, []string{"-f", file}...)
+			args := []string{"-f", file}
 			if !strings.Contains(filename, createDatabaseMigrationName) {
 				args = append(args, []string{"-d", config["db"]}...)
 				log.Printf("Running database creation migration: %s", file)
 			}
 
+			//TODO - Refactor out this code into it's own method.
+			// TODO - Combine Database and metatable migration and add entry to the metatable on completion
 			///fmt.Println("Args: %t", args)
 			result, err := runCommand("psql", args...)
 			if err != nil || strings.Contains(string(result), "ERROR") {
