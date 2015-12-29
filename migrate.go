@@ -54,19 +54,21 @@ func migrateDB(config map[string]string) {
 		migrations = readMetadata()
 	}
 
+	perm_args := []string{"-U", config["db_user"], "-W"}
+
 	for _, file := range files {
 		filename := path.Base(file)
 
 		if !contains(filename, migrations) {
 			log.Printf("Running migration %s", filename)
 
-			args := []string{"-d", config["db"], "-f", file}
-			if strings.Contains(filename, createDatabaseMigrationName) {
-				args = []string{"-f", file}
+			args := append(perm_args, []string{"-f", file}...)
+			if !strings.Contains(filename, createDatabaseMigrationName) {
+				args = append(args, []string{"-d", config["db"]}...)
 				log.Printf("Running database creation migration: %s", file)
 			}
 
-			// Execute this sql file against the database
+			///fmt.Println("Args: %t", args)
 			result, err := runCommand("psql", args...)
 			if err != nil || strings.Contains(string(result), "ERROR") {
 				if err == nil {
