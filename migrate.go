@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"os"
 )
 
 // We provide no facility to rollback at the moment, because rollbacks have all sorts of subtle issues and are not often useful IME.
@@ -43,7 +42,7 @@ func migrateDB(config map[string]string) {
 	// Get a list of migration files
 	files, err := filepath.Glob("./db/migrate/*.sql")
 	if err != nil {
-		log.Printf("Error running restore %s", err)
+		log.Printf("Error gathering migration files [%s]", err)
 		return
 	}
 
@@ -54,57 +53,54 @@ func migrateDB(config map[string]string) {
 	err = openDatabase(config)
 	if err != nil {
 		// if no db, proceed with empty migrations list
-		log.Printf("No database found")
-		// Here we must run the database migration and the metadata table migration
+		log.Printf("No database found") // so we must run the database migration and the metadata table migration
 	} else {
 		migrations = readMetadata()
 	}
 
 	// psql requires permissions. Set these in environment variables
-	os.Setenv("PGUSER", config["db_user"])
-	os.Setenv("PGPASSWORD", config["db_password"])
-	os.Setenv("PGDATABASE", config["db"])
-	//perm_args := []string{"-U", config["db_user"], "-W"}
+	db_creds := []string{ "PGUSER", config["db_user"], "PGPASSWORD", config["db_pass"]}
+	var psql_env []string
 
 	for _, file := range files {
 		filename := path.Base(file)
 
-		if !contains(filename, migrations) {
+
+		if !contains(filename, migrations) { // if migration has not been run
 			log.Printf("Running migration %s", filename)
+			if strings.Contains(filename, createDatabaseMigrationName) {
+				psql_env = append(db_creds, []string{"PGDATABASE", "postgres"}...)
 
-			args := []string{"-f", file}
-			if !strings.Contains(filename, createDatabaseMigrationName) {
-				args = append(args, []string{"-d", config["db"]}...)
-				log.Printf("Running database creation migration: %s", file)
+			} else {
+				psql_env = append(db_creds, []string{"PGDATABASE", config["db"]}...)
 			}
-
-			//TODO - Refactor out this code into it's own method.
-			// TODO - Combine Database and metatable migration and add entry to the metatable on completion
-			///fmt.Println("Args: %t", args)
-			result, err := runCommand("psql", args...)
-			if err != nil || strings.Contains(string(result), "ERROR") {
-				if err == nil {
-					err = fmt.Errorf("\n%s", string(result))
-				}
-
-				// If at any point we fail, log it and break
-				log.Printf("ERROR loading sql migration:%s\n", err)
-				log.Printf("All further migrations cancelled\n\n")
-				break
-			}
-
+			result, err := psqlMigrate(file, psql_env)
+			if err != nil { break }
 			completed = append(completed, filename)
 			log.Printf("Completed migration %s\n%s\n%s", filename, string(result), fragmentaDivider)
 		}
 	}
 
 	if len(completed) > 0 {
-		writeMetadata(config, completed)
+		writeMetadata(config, completed) // Good! Migrations don't get written till all migrations are ran
 		log.Printf("Migrations complete up to migration %s on db %s\n\n", completed[len(completed)-1], config["db"])
 	} else {
 		log.Printf("No migrations to perform at path %s\n\n", "./db/migrate")
 	}
 
+}
+
+func psqlMigrate(file string, env []string) ([]byte, error) {
+	result, err := runCommandSetEnv("psql", env, []string{"-f", file}...)
+	if err != nil || strings.Contains(string(result), "ERROR") {
+		if err == nil {
+			err = fmt.Errorf("\n%s", string(result))
+		}
+		// If at any point we fail, log it and break
+		log.Printf("ERROR loading sql migration:%s\n", err)
+		log.Printf("All further migrations cancelled\n\n")
+	}
+	return result, err
 }
 
 // Open our database
@@ -136,7 +132,7 @@ func readMetadata() []string {
 
 	rows, err := query.QuerySQL(sql)
 	if err != nil {
-		log.Printf("Database ERROR %s", err)
+		log.Printf("Error determining migration version. Perhaps the metadata table has not be created as yet.\n%s", err)
 		return migrations
 	}
 

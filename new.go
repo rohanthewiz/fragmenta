@@ -35,7 +35,7 @@ func RunNew(args []string) {
 	repo := args[0]
 	projectPath, err := filepath.Abs(args[1])
 	if err != nil {
-		log.Printf("Erorr expanding file path\n")
+		log.Printf("Error expanding file path\n")
 		return
 	}
 
@@ -176,8 +176,7 @@ func generateCreateSQL(projectPath string) error {
 	name := path.Base(projectPath)
 	d := ConfigDevelopment["db"]
 	u := ConfigDevelopment["db_user"]
-	p := ConfigDevelopment["db_pass"]
-	sql := fmt.Sprintf("/* Setup database for %s */\nCREATE USER \"%s\" WITH PASSWORD '%s';\nCREATE DATABASE \"%s\" WITH OWNER \"%s\";", name, u, p, d, u)
+	sql := fmt.Sprintf("/* Setup database for %s */\nCREATE DATABASE \"%s\" WITH OWNER \"%s\";\n", name, d, u)
 
 	// Generate a migration to create db with today's date
 	file := migrationPath(projectPath, createDatabaseMigrationName)
@@ -221,6 +220,16 @@ func generateConfig(projectPath string) error {
 	configPath := configPath(projectPath)
 	prefix := path.Base(projectPath)
 	log.Printf("Generating new config at %s", configPath)
+	// Paradigm shift here. We must manually create a user in the database before running fragmenta new
+	// We pass in those creds below
+	db_user, err := promptForString("database username")
+	if err != nil {
+		db_user = prefix + "_server"
+	}
+	db_pass, err := promptForString("database password")
+	if err != nil {
+		db_pass = randomKey(8)
+	}
 
 	ConfigProduction = map[string]string{}
 	ConfigDevelopment = map[string]string{}
@@ -229,8 +238,8 @@ func generateConfig(projectPath string) error {
 		"log":             "log/test.log",
 		"db_adapter":      "postgres",
 		"db":              prefix + "_test",
-		"db_user":         prefix + "_server",
-		"db_pass":         randomKey(8),
+		"db_user":         db_user,
+		"db_pass":         db_pass,
 		"assets_compiled": "no",
 		"path":            projectPathRelative(projectPath),
 		"hmac_key":        randomKey(32),

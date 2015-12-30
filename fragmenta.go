@@ -240,6 +240,21 @@ func runCommand(command string, args ...string) ([]byte, error) {
 	return output, nil
 }
 
+// runCommand runs a command with exec.Command
+func runCommandSetEnv(command string, p_env []string, args ...string) ([]byte, error) {
+	// It seems the only way to get env vars to exec is to set them manually here
+	for i := 0; i < len(p_env); i += 2 {
+		os.Setenv(p_env[i], p_env[i + 1])
+	}
+	cmd := exec.Command(command, args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return output, err
+	}
+
+	return output, nil
+}
+
 // requireValidProject returns true if we have a valid project at projectPath
 func requireValidProject(projectPath string) bool {
 	if isValidProject(projectPath) {
