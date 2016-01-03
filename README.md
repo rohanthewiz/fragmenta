@@ -3,9 +3,15 @@
 Fragmenta is a command line tool for creating, managing and deploying golang web applications. It comes with a suite of libraries which making developing web apps easier, and aims to allow managing apps without making too many assumptions about which libraries they use or their internal structure. It takes care of generating CRUD actions, handling auth, routing and rendering and leaves you to concentrate the parts of your app which are unique. 
 
 ### Using Fragmenta
-(Fragmenta currently requires Postgres. You will need to setup a database user first. Use a command similar to:
-sudo -u postgres psql postgres -c "create user my_user with password 'my_password' CREATEDB;".
-Fragmenta will prompt for this database username and password when a new website is created)
+New projects must be generated within the $GOPATH tree.
+(Fragmenta is currently setup for Postgres. You will need to install Postgres (http://www.postgresql.org/download/linux/ubuntu/)
+and setup a database user first. Use a command similar to:
+
+    sudo -u postgres psql postgres -c "create user my_user with password 'my_password' CREATEDB;".
+Fragmenta will prompt for this database username and password when a new website is created.
+On Ubuntu, you may also need to edit `/etc/postgresql/9.4/main/pg_hba.conf`. Under the entry for *local* make sure the peer column is set to *password*
+)
+
 * fragmenta version -> display version
 * fragmenta help -> display help
 * fragmenta new [app|cms|blog|URL] path/to/app -> creates a new app from the repository at URL at the path supplied
