@@ -17,6 +17,7 @@ import (
 const (
 	createDatabaseMigrationName = "Create-Database"
 	createTablesMigrationName   = "Create-Tables"
+	appTemplateSource           = "github.com/rohanthewiz/"
 )
 
 // RunNew creates a new fragmenta project given the argument
@@ -46,11 +47,11 @@ func RunNew(args []string) {
 
 	switch repo {
 	case "app":
-		repo = "github.com/fragmenta/fragmenta-app"
+		repo = appTemplateSource + "fragmenta-app"
 	case "cms":
-		repo = "github.com/fragmenta/fragmenta-cms"
+		repo = appTemplateSource + "fragmenta-cms"
 	case "blog":
-		repo = "github.com/fragmenta/fragmenta-blog"
+		repo = appTemplateSource + "fragmenta-blog"
 	default:
 		// TODO clean repo if it contains https or .git...
 	}
